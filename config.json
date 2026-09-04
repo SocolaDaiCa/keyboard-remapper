@@ -1,0 +1,41 @@
+{
+  "verbose": false,
+  "mappings": [
+    {
+      "from": {
+        "key": "f5"
+      },
+      "to": {
+        "key": "r",
+        "modifiers": ["cmd"]
+      }
+    },
+    {
+      "from": {
+        "key": "f6"
+      },
+      "to": {
+        "key": "w",
+        "modifiers": ["cmd"]
+      }
+    },
+    {
+      "from": {
+        "key": "f5",
+        "modifiers": ["ctrl"]
+      },
+      "to": {
+        "key": "r",
+        "modifiers": ["cmd", "shift"]
+      }
+    },
+    {
+      "from": {
+        "key": "f2"
+      },
+      "to": {
+        "key": "enter"
+      }
+    }
+  ]
+}
