@@ -51,11 +51,13 @@ Ví dụ:
 
 ## 📖 Cách sử dụng
 
-### 1. Chạy với cấu hình mặc định:
+### 1. Chạy với cấu hình mặc định (UserConfig.swift):
 ```bash
 ./keyboard-remapper
+# hoặc vừa build vừa chạy
+./build.sh && ./keyboard-remapper
 ```
-Chương trình sẽ tự động đọc file `config.json` tại thư mục hiện tại.
+Mặc định, chương trình sẽ nạp trực tiếp cấu hình được định nghĩa trong `Sources/KeyboardRemapper/UserConfig.swift`.
 
 ### 2. Bật chế độ hiển thị log chi tiết (Verbose):
 ```bash
@@ -67,48 +69,106 @@ Mỗi khi nhấn phím đã được remap, terminal sẽ hiển thị log real-
 ⚡ [UP]   F5  ➔  ⌘ Cmd + R
 ```
 
-### 3. Chỉ định file cấu hình khác:
+### 3. Chạy với file cấu hình JSON:
+Nếu muốn tuỳ biến phím mà không cần biên dịch lại code:
 ```bash
-./keyboard-remapper --config /path/to/my-config.json
+./keyboard-remapper --config config.json
+# hoặc đường dẫn tuỳ ý
+./keyboard-remapper -c /path/to/custom-config.json
 ```
 
-### 4. Xem danh sách phím và modifier được hỗ trợ:
+### 4. Xuất cấu hình từ Swift sang JSON:
+```bash
+./keyboard-remapper --export-json            # Xuất ra config.json
+./keyboard-remapper --export-json my.json    # Xuất ra file chỉ định
+```
+
+### 5. Xem danh sách phím và modifier được hỗ trợ:
 ```bash
 ./keyboard-remapper --list-keys
 ```
 
-### 5. Dừng chương trình:
-Nhấn **Ctrl + C** trong Terminal bất cứ lúc nào để dừng.
+### 6. Dừng chương trình:
+Nhấn **Ctrl + C** hoặc **Ctrl + \** trong Terminal bất cứ lúc nào để dừng an toàn.
 
 ---
 
-## ⚙️ Cấu hình (`config.json`)
+## ⚙️ Hướng dẫn Cấu hình
 
-Cấu trúc file `config.json` rất đơn giản:
+Có 2 cách cấu hình phím:
+
+### Cách 1: Cấu hình bằng Swift (Mặc định & Khuyên dùng)
+Chỉnh sửa file `Sources/KeyboardRemapper/UserConfig.swift`:
+- **Auto-complete**: Có gợi ý mã nguồn (IntelliSense) ngay trong IDE khi gõ `keyboard.`
+- **Cú pháp cực ngắn**: Sử dụng toán tử `=>`
+- Sau khi chỉnh sửa, chỉ cần chạy `./build.sh` là xong!
+
+```swift
+public struct UserConfig {
+    public static let verbose: Bool = false
+
+    public static let mappings: [KeyMapping] = [
+        // F2 ➔ Enter (Đổi tên file như Windows)
+        keyboard.f2 => keyboard.enter,
+
+        // F5 ➔ ⌘ Cmd + R (Tải lại trang)
+        keyboard.f5 => keyboard.r.cmd,
+
+        // ⌃ Ctrl + F5 ➔ ⇧ Shift + ⌘ Cmd + R (Hard reload)
+        keyboard.f5.ctrl => keyboard.r.cmd.shift,
+
+        // Alt + F4 ➔ ⌘ Cmd + Q (Thoát ứng dụng)
+        keyboard.f4.alt => keyboard.q.cmd,
+
+        // ⌃ Ctrl + C ➔ ⌘ Cmd + C (Copy)
+        keyboard.c.ctrl => keyboard.c.cmd,
+
+        // ⌃ Ctrl + V ➔ ⌘ Cmd + V (Paste)
+        keyboard.v.ctrl => keyboard.v.cmd,
+
+        // Home / End theo dòng
+        keyboard.home => keyboard.left.cmd,
+        keyboard.end  => keyboard.right.cmd,
+    ]
+}
+```
+
+### Cách 2: Cấu hình bằng JSON (`config.json`)
+Dành cho trường hợp muốn thay đổi phím nóng runtime mà không cần compile lại:
 
 ```json
 {
   "verbose": false,
   "mappings": [
     {
+      "from": { "key": "f2" },
+      "to": { "key": "enter" }
+    },
+    {
       "from": { "key": "f5" },
       "to": { "key": "r", "modifiers": ["cmd"] }
     },
     {
-      "from": { "key": "f6" },
-      "to": { "key": "w", "modifiers": ["cmd"] }
-    },
-    {
-      "from": { "key": "f5", "modifiers": ["ctrl"] },
-      "to": { "key": "r", "modifiers": ["cmd", "shift"] }
+      "from": { "key": "c", "modifiers": ["ctrl"] },
+      "to": { "key": "c", "modifiers": ["cmd"] }
     }
   ]
 }
 ```
 
-### Tên Modifiers hợp lệ:
-- `cmd`, `command`, `win`, `windows` ➔ Phím Command (⌘)
-- `ctrl`, `control` ➔ Phím Control (⌃)
-- `alt`, `opt`, `option` ➔ Phím Option (⌥)
-- `shift` ➔ Phím Shift (⇧)
-- `fn` ➔ Phím Fn
+> **Gợi ý**: Bạn có thể sinh file `config.json` đầy đủ mẫu tự động bằng lệnh:
+> ```bash
+> ./keyboard-remapper --export-json
+> ```
+
+---
+
+## ⌨️ Bảng Modifiers hỗ trợ
+
+| Modifier | Cú pháp Swift DSL | Cú pháp JSON |
+| :--- | :--- | :--- |
+| **Command (⌘)** | `.cmd`, `.win` | `"cmd"`, `"command"`, `"win"`, `"windows"` |
+| **Control (⌃)** | `.ctrl` | `"ctrl"`, `"control"` |
+| **Option / Alt (⌥)** | `.alt`, `.opt` | `"alt"`, `"opt"`, `"option"` |
+| **Shift (⇧)** | `.shift` | `"shift"` |
+| **Fn** | `.fn` | `"fn"` |
