@@ -125,9 +125,6 @@ public struct UserConfig {
         // ⌃ Ctrl + ⇧ Shift + W ➔ ⇧ Shift + ⌘ Cmd + W (Đóng toàn bộ cửa sổ)
         keyboard.w.ctrl.shift => keyboard.w.cmd.shift,
 
-        // ⌃ Ctrl + R ➔ ⌘ Cmd + R (Tải lại trang)
-        keyboard.r.ctrl => keyboard.r.cmd,
-
         // ⌃ Ctrl + ⇧ Shift + R ➔ ⇧ Shift + ⌘ Cmd + R (Tải lại bỏ cache)
         keyboard.r.ctrl.shift => keyboard.r.cmd.shift,
 
