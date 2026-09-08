@@ -36,14 +36,21 @@ public class RemapperEngine {
     private let verbose: Bool
     private let controlClickToCommandClick: Bool
     private let eventSource: CGEventSource?
+    private let vietnameseEngine: VietnameseInputEngine?
     public static let magicTag: Int64 = 0x52454D4150 // ASCII "REMAP"
 
-    public init(mappings: [CompiledMapping], verbose: Bool = false, controlClickToCommandClick: Bool = false) {
+    public init(
+        mappings: [CompiledMapping],
+        verbose: Bool = false,
+        controlClickToCommandClick: Bool = false,
+        enableVietnameseTelex: Bool = false
+    ) {
         self.mappings = mappings
         self.verbose = verbose
         self.controlClickToCommandClick = controlClickToCommandClick
         // HID system state source simulates hardware input events
         self.eventSource = CGEventSource(stateID: .hidSystemState)
+        self.vietnameseEngine = enableVietnameseTelex ? VietnameseInputEngine() : nil
     }
 
     /// Kiểm tra quyền Accessibility trên macOS
@@ -195,13 +202,70 @@ public class RemapperEngine {
 
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
+        let isDown = (type == .keyDown)
+
+        // --- Xử lý bộ gõ tiếng Việt Telex (ưu tiên trước remap thông thường) ---
+        if let viet = vietnameseEngine {
+            let relevantFlags = flags.intersection(KeyCodeHelper.modifierMask)
+            let isPlainKey = relevantFlags.isEmpty // Không giữ modifier nào
+
+            if isPlainKey {
+                if isDown {
+                    // Lấy ký tự Unicode từ event
+                    var unicodeLength = 0
+                    var unicodeBuffer = [UniChar](repeating: 0, count: 4)
+                    event.keyboardGetUnicodeString(
+                        maxStringLength: 4,
+                        actualStringLength: &unicodeLength,
+                        unicodeString: &unicodeBuffer
+                    )
+
+                    if unicodeLength == 1, let scalar = Unicode.Scalar(unicodeBuffer[0]),
+                       scalar.value >= 32 { // Bỏ qua control chars
+                        let inputChar = Character(scalar)
+                        let action = viet.processCharacter(inputChar)
+
+                        switch action {
+                        case .passThrough:
+                            // Để event đi qua bình thường
+                            return Unmanaged.passRetained(event)
+
+                        case .replace(let deleteCount, let insertStr):
+                            // Gửi Backspace × deleteCount để xóa ký tự cũ
+                            for _ in 0 ..< deleteCount {
+                                postBackspace()
+                            }
+                            // Gửi unicode string mới
+                            postUnicodeString(insertStr)
+                            if verbose {
+                                print("🇻🇳 [Telex] '\(inputChar)' → xóa \(deleteCount) + chèn \"\(insertStr)\"")
+                            }
+                            return nil // Chặn event gốc
+
+                        case .reset:
+                            viet.reset()
+                            return Unmanaged.passRetained(event)
+                        }
+                    } else {
+                        // Phím đặc biệt (Enter, Esc, arrow...) → reset state
+                        viet.reset()
+                        return Unmanaged.passRetained(event)
+                    }
+                } else {
+                    // keyUp: không cần xử lý gì với Telex, để qua
+                    return Unmanaged.passRetained(event)
+                }
+            } else {
+                // Có modifier → reset state bộ gõ
+                viet.reset()
+            }
+        }
 
         // Tìm quy tắc khớp với phím và modifiers hiện tại
         guard let rule = mappings.first(where: { $0.matches(code: keyCode, flags: flags) }) else {
             return Unmanaged.passRetained(event)
         }
 
-        let isDown = (type == .keyDown)
         let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
         if verbose {
@@ -280,5 +344,37 @@ public class RemapperEngine {
         // Đẩy event mới và triệt tiêu event gốc
         newEvent.post(tap: .cghidEventTap)
         return nil
+    }
+
+    // MARK: - Vietnamese Input Helpers
+
+    /// Gửi một Backspace event để xóa 1 ký tự
+    private func postBackspace() {
+        // keyCode 51 = Delete/Backspace trên macOS
+        if let bsDown = CGEvent(keyboardEventSource: eventSource, virtualKey: 51, keyDown: true),
+           let bsUp   = CGEvent(keyboardEventSource: eventSource, virtualKey: 51, keyDown: false) {
+            bsDown.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
+            bsUp.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
+            bsDown.post(tap: .cghidEventTap)
+            bsUp.post(tap: .cghidEventTap)
+        }
+    }
+
+    /// Gửi một chuỗi Unicode ra hệ thống (dùng cho ký tự tiếng Việt)
+    private func postUnicodeString(_ str: String) {
+        let unicodeScalars = Array(str.unicodeScalars)
+        let unicodeBuffer = unicodeScalars.map { UniChar($0.value) }
+        // Tạo event keyDown giả với unicode string
+        if let event = CGEvent(keyboardEventSource: eventSource, virtualKey: 0, keyDown: true) {
+            event.keyboardSetUnicodeString(stringLength: unicodeBuffer.count, unicodeString: unicodeBuffer)
+            event.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
+            event.post(tap: .cghidEventTap)
+            // KeyUp tương ứng
+            if let upEvent = CGEvent(keyboardEventSource: eventSource, virtualKey: 0, keyDown: false) {
+                upEvent.keyboardSetUnicodeString(stringLength: unicodeBuffer.count, unicodeString: unicodeBuffer)
+                upEvent.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
+                upEvent.post(tap: .cghidEventTap)
+            }
+        }
     }
 }

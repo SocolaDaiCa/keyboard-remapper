@@ -220,6 +220,7 @@ Trạng thái Trợ năng (Accessibility): \(isTrusted ? "✅ Đã cấp quyền
 Nguồn cấu hình: \(configSourceDescription)
 Chế độ Log chi tiết: \(isVerbose ? "BẬT" : "TẮT")
 ⌃ Ctrl+Click → ⌘ Cmd+Click: \(UserConfig.controlClickToCommandClick ? "BẬT" : "TẮT")
+🇻🇳 Bộ gõ Telex tiếng Việt: \(UserConfig.enableVietnameseTelex ? "BẬT" : "TẮT")
 
 Danh sách quy tắc phím đang kích hoạt (\(compiledMappings.count)):
 """)
@@ -237,7 +238,8 @@ print("""
 let engine = RemapperEngine(
     mappings: compiledMappings,
     verbose: isVerbose,
-    controlClickToCommandClick: UserConfig.controlClickToCommandClick
+    controlClickToCommandClick: UserConfig.controlClickToCommandClick,
+    enableVietnameseTelex: UserConfig.enableVietnameseTelex
 )
 
 // Đăng ký bắt tín hiệu ngắt Ctrl+C, Ctrl+\ và SIGTERM để dừng sạch sẽ

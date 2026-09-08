@@ -25,6 +25,21 @@ public struct UserConfig {
     /// (true: Bật — ⌃ Ctrl+Click sẽ hoạt động như ⌘ Cmd+Click để mở link trong tab mới, v.v.)
     public static let controlClickToCommandClick: Bool = true
 
+    /// 🇻🇳 Bật bộ gõ tiếng Việt kiểu Telex tích hợp
+    ///
+    /// Khi bật, bạn có thể gõ tiếng Việt KHÔNG cần bật input source của macOS —
+    /// không bị gạch chân, hoạt động hoàn hảo trong Terminal và mọi ứng dụng.
+    ///
+    /// Quy tắc Telex:
+    ///   Nguyên âm:  aa→â   ee→ê   oo→ô   ow/wo→ơ   uw/wu→ư   dd→đ
+    ///   Dấu thanh: (gõ sau nguyên âm)
+    ///     s = sắc (á)    f = huyền (à)    r = hỏi (ả)
+    ///     x = ngã (ã)    j = nặng (ạ)     z = bỏ dấu
+    ///
+    /// ⚠️  Lưu ý: Khi bật, các phím s/f/r/x/j/z/w/d sẽ được xử lý đặc biệt.
+    ///           Nên tắt input source tiếng Việt của macOS để tránh xung đột.
+    public static let enableVietnameseTelex: Bool = false
+
     /// Danh sách các quy tắc ánh xạ phím (Key Mappings)
     public static let mappings: [KeyMapping] = [
         // =================================================================
