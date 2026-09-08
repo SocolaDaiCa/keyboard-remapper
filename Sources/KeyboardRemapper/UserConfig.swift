@@ -21,6 +21,10 @@ public struct UserConfig {
     /// Bật chế độ log chi tiết mỗi khi nhấn phím (true: Bật, false: Tắt)
     public static let verbose: Bool = false
 
+    /// Bật chế độ chuyển đổi Control + Click thành Command + Click
+    /// (true: Bật — ⌃ Ctrl+Click sẽ hoạt động như ⌘ Cmd+Click để mở link trong tab mới, v.v.)
+    public static let controlClickToCommandClick: Bool = true
+
     /// Danh sách các quy tắc ánh xạ phím (Key Mappings)
     public static let mappings: [KeyMapping] = [
         // =================================================================

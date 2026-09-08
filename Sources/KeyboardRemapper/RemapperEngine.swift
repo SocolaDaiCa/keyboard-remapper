@@ -30,14 +30,18 @@ public enum RemapperError: LocalizedError {
 public class RemapperEngine {
     private var eventTap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
+    private var mouseTap: CFMachPort?
+    private var mouseRunLoopSource: CFRunLoopSource?
     private let mappings: [CompiledMapping]
     private let verbose: Bool
+    private let controlClickToCommandClick: Bool
     private let eventSource: CGEventSource?
     public static let magicTag: Int64 = 0x52454D4150 // ASCII "REMAP"
 
-    public init(mappings: [CompiledMapping], verbose: Bool = false) {
+    public init(mappings: [CompiledMapping], verbose: Bool = false, controlClickToCommandClick: Bool = false) {
         self.mappings = mappings
         self.verbose = verbose
+        self.controlClickToCommandClick = controlClickToCommandClick
         // HID system state source simulates hardware input events
         self.eventSource = CGEventSource(stateID: .hidSystemState)
     }
@@ -102,6 +106,49 @@ public class RemapperEngine {
         CFRunLoopAddSource(CFRunLoopGetCurrent(), source, .commonModes)
         CGEvent.tapEnable(tap: validTap, enable: true)
 
+        // Khởi động Mouse Event Tap nếu bật tính năng Control+Click → Command+Click
+        if controlClickToCommandClick {
+            let mouseMask = (1 << CGEventType.leftMouseDown.rawValue) |
+                            (1 << CGEventType.leftMouseUp.rawValue)
+
+            let mouseTap = CGEvent.tapCreate(
+                tap: .cghidEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: CGEventMask(mouseMask),
+                callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                    guard let refcon = refcon else { return Unmanaged.passRetained(event) }
+                    let engine = Unmanaged<RemapperEngine>.fromOpaque(refcon).takeUnretainedValue()
+                    return engine.handleMouseEvent(proxy: proxy, type: type, event: event)
+                },
+                userInfo: selfPtr
+            ) ?? CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .defaultTap,
+                eventsOfInterest: CGEventMask(mouseMask),
+                callback: { (proxy, type, event, refcon) -> Unmanaged<CGEvent>? in
+                    guard let refcon = refcon else { return Unmanaged.passRetained(event) }
+                    let engine = Unmanaged<RemapperEngine>.fromOpaque(refcon).takeUnretainedValue()
+                    return engine.handleMouseEvent(proxy: proxy, type: type, event: event)
+                },
+                userInfo: selfPtr
+            )
+
+            if let validMouseTap = mouseTap {
+                self.mouseTap = validMouseTap
+                let mouseSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, validMouseTap, 0)
+                self.mouseRunLoopSource = mouseSource
+                CFRunLoopAddSource(CFRunLoopGetCurrent(), mouseSource, .commonModes)
+                CGEvent.tapEnable(tap: validMouseTap, enable: true)
+                if verbose {
+                    print("🖱️  Mouse EventTap (⌃ Ctrl+Click → ⌘ Cmd+Click) đã được kích hoạt.")
+                }
+            } else if verbose {
+                print("⚠️ Không thể khởi tạo Mouse EventTap cho Control+Click → Command+Click.")
+            }
+        }
+
         if verbose {
             print("🚀 CGEventTap đã được kích hoạt thành công.")
         }
@@ -116,6 +163,14 @@ public class RemapperEngine {
             }
             self.eventTap = nil
             self.runLoopSource = nil
+        }
+        if let tap = mouseTap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            if let source = mouseRunLoopSource {
+                CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
+            }
+            self.mouseTap = nil
+            self.mouseRunLoopSource = nil
         }
     }
 
@@ -175,6 +230,55 @@ public class RemapperEngine {
         newEvent.post(tap: .cghidEventTap)
 
         // Triệt tiêu sự kiện phím gốc (chặn không cho gửi tiếp)
+        return nil
+    }
+
+    /// Xử lý mouse events: chuyển Control+Click thành Command+Click
+    private func handleMouseEvent(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // Tự phục hồi nếu tap bị timeout
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let tap = mouseTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
+                if verbose {
+                    print("⚠️ Mouse EventTap bị tạm ngắt bởi macOS, đã tự động phục hồi.")
+                }
+            }
+            return Unmanaged.passRetained(event)
+        }
+
+        // Bỏ qua event do chính remapper phát ra
+        let userData = event.getIntegerValueField(.eventSourceUserData)
+        if userData == RemapperEngine.magicTag {
+            return Unmanaged.passRetained(event)
+        }
+
+        let flags = event.flags
+
+        // Chỉ xử lý khi đang giữ Control (và không có Command)
+        guard flags.contains(.maskControl),
+              !flags.contains(.maskCommand) else {
+            return Unmanaged.passRetained(event)
+        }
+
+        // Xây dựng flags mới: bỏ Control, thêm Command (giữ lại Shift, Option nếu có)
+        var newFlags = flags
+        newFlags.remove(.maskControl)
+        newFlags.insert(.maskCommand)
+
+        // Clone event và cập nhật flags
+        guard let newEvent = event.copy() else {
+            return Unmanaged.passRetained(event)
+        }
+        newEvent.flags = newFlags
+        newEvent.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
+
+        if verbose {
+            let eventName = (type == .leftMouseDown) ? "MouseDown" : "MouseUp"
+            print("🖱️  [\(eventName)] ⌃ Ctrl+Click  ➔  ⌘ Cmd+Click")
+        }
+
+        // Đẩy event mới và triệt tiêu event gốc
+        newEvent.post(tap: .cghidEventTap)
         return nil
     }
 }
