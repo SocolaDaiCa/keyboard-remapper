@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import ApplicationServices
+import AppKit
 
 public enum RemapperError: LocalizedError {
     case accessibilityNotGranted
@@ -261,30 +262,43 @@ public class RemapperEngine {
             }
         }
 
-        // Tìm quy tắc khớp với phím và modifiers hiện tại
-        guard let rule = mappings.first(where: { $0.matches(code: keyCode, flags: flags) }) else {
+        // Tìm quy tắc khớp với phím + modifiers + app hiện tại
+        let frontBundleId = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        guard let rule = mappings.first(where: { $0.matches(code: keyCode, flags: flags, bundleId: frontBundleId) }) else {
             return Unmanaged.passRetained(event)
         }
 
         let isAutorepeat = event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
+        // Passthrough rule: không remap, nhưng đã “chặn” các rule phía sau — để event đi qua bình thường
+        if rule.isPassthrough {
+            if verbose {
+                let original = KeyCodeHelper.formatCombo(code: keyCode, flags: flags)
+                let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? frontBundleId ?? "?"
+                let eventName = isDown ? (isAutorepeat ? "REPEAT" : "DOWN") : "UP"
+                print("⚡ [\(eventName)] \(original)  →  passthrough (ứng dụng: \(appName))")
+            }
+            return Unmanaged.passRetained(event)
+        }
+
         if verbose {
             let eventName = isDown ? (isAutorepeat ? "REPEAT" : "DOWN") : "UP"
             let original = KeyCodeHelper.formatCombo(code: keyCode, flags: flags)
-            let target = KeyCodeHelper.formatCombo(code: rule.toCode, flags: rule.toFlags)
-            print("⚡ [\(eventName)] \(original)  ➔  \(target)")
+            let target = KeyCodeHelper.formatCombo(code: rule.toCode!, flags: rule.toFlags!)
+            let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? frontBundleId ?? "?"
+            print("⚡ [\(eventName)] \(original)  ➡  \(target) (ứng dụng: \(appName))")
         }
 
         // Tạo sự kiện mới với phím và tổ hợp phím đích
         guard let newEvent = CGEvent(
             keyboardEventSource: eventSource,
-            virtualKey: rule.toCode,
+            virtualKey: rule.toCode!,
             keyDown: isDown
         ) else {
             return nil
         }
 
-        newEvent.flags = rule.toFlags
+        newEvent.flags = rule.toFlags!
         newEvent.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
         if isAutorepeat {
             newEvent.setIntegerValueField(.keyboardEventAutorepeat, value: 1)

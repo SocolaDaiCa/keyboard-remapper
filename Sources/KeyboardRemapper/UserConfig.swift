@@ -73,7 +73,17 @@ public struct UserConfig {
         keyboard.a.ctrl => keyboard.a.cmd,
 
         // ⌃ Ctrl + C ➔ ⌘ Cmd + C (Sao chép / Copy)
-        keyboard.c.ctrl => keyboard.c.cmd,
+        // ⚠️  Ngoại lệ: Trong Terminal và iTerm2, giữ nguyên Ctrl+C (ín hiệu SIGINT)
+        keyboard.c.ctrl.only(
+            "com.apple.Terminal",
+            "com.googlecode.iterm2",
+            "net.kovidgoyal.kitty"
+        ).passthrough(),
+        keyboard.c.ctrl.except(
+            "com.apple.Terminal",
+            "com.googlecode.iterm2",
+            "net.kovidgoyal.kitty"
+        ) => keyboard.c.cmd,
 
         // ⌃ Ctrl + X ➔ ⌘ Cmd + X (Cắt / Cut)
         keyboard.x.ctrl => keyboard.x.cmd,
@@ -253,7 +263,13 @@ public struct UserConfig {
         // =================================================================
         // 11. Phím Del trên bàn phím rời (External Keyboard Delete Key)
         // =================================================================
-        // Del ➔ ⌘ Cmd + Backspace (Xóa toàn bộ dòng / Chuyển vào Trash trong Finder)
+        // Del trong Chrome ➤ Shift + Del (Xóa ký tự phía sau / Forward Delete thực sự)
+        keyboard.forwardDelete.only(
+            "com.google.Chrome",
+            "com.google.Chrome.canary"
+        ) => keyboard.forwardDelete.shift,
+
+        // Del (các app còn lại) ➤ ⌘ Cmd + Backspace (Xóa toàn bộ dòng / Chuyển vào Trash trong Finder)
         keyboard.forwardDelete => keyboard.backspace.cmd,
 
         // =================================================================

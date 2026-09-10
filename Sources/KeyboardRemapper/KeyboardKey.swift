@@ -28,11 +28,14 @@ public struct Key: Equatable, Hashable {
     public let name: String
     public let keyCode: CGKeyCode
     public var modifiers: [Modifier]
+    /// Lọc app áp dụng rule này (nil = tất cả app)
+    public var appFilter: AppFilter?
 
     public init(_ name: String, keyCode: CGKeyCode, modifiers: [Modifier] = []) {
         self.name = name
         self.keyCode = keyCode
         self.modifiers = modifiers
+        self.appFilter = nil
     }
 
     // MARK: - Fluent Modifier Chaining
@@ -81,9 +84,36 @@ public struct Key: Equatable, Hashable {
         return copy
     }
 
+    // MARK: - App Filter Chaining
+
+    /// Chỉ áp dụng rule này khi một trong các app chỉ định đang active
+    ///
+    /// Ví dụ: `keyboard.forwardDelete.only("com.google.Chrome") => keyboard.forwardDelete.shift`
+    public func only(_ bundleIds: String...) -> Key {
+        var copy = self
+        copy.appFilter = .only(bundleIds)
+        return copy
+    }
+
+    /// Áp dụng rule này cho tất cả app, TRỪ các app chỉ định
+    ///
+    /// Ví dụ: `keyboard.c.ctrl.except("com.apple.Terminal") => keyboard.c.cmd`
+    public func except(_ bundleIds: String...) -> Key {
+        var copy = self
+        copy.appFilter = .except(bundleIds)
+        return copy
+    }
+
+    /// Tạo rule passthrough (không remap) — thường dùng cho app cụ thể
+    ///
+    /// Ví dụ: `keyboard.c.ctrl.only("com.apple.Terminal").passthrough()`
+    public func passthrough() -> KeyMapping {
+        return KeyMapping(from: self, to: nil as Key?, appFilter: self.appFilter)
+    }
+
     /// Tạo quy tắc remap phím đến phím đích
     public func remap(to target: Key) -> KeyMapping {
-        return KeyMapping(from: self, to: target)
+        return KeyMapping(from: self, to: target, appFilter: self.appFilter)
     }
 
     public var displayString: String {
@@ -96,8 +126,9 @@ public struct Key: Equatable, Hashable {
 infix operator => : AdditionPrecedence
 
 /// Cú pháp gán phím trực quan: `keyboard.f5 => keyboard.r.cmd`
+/// App filter (nếu có) sẽ được lấy từ `lhs`
 public func => (lhs: Key, rhs: Key) -> KeyMapping {
-    return KeyMapping(from: lhs, to: rhs)
+    return KeyMapping(from: lhs, to: rhs, appFilter: lhs.appFilter)
 }
 
 /// Thêm modifier bằng toán tử + : `keyboard.r + .cmd`

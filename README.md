@@ -172,3 +172,96 @@ Dành cho trường hợp muốn thay đổi phím nóng runtime mà không cầ
 | **Option / Alt (⌥)** | `.alt`, `.opt` | `"alt"`, `"opt"`, `"option"` |
 | **Shift (⇧)** | `.shift` | `"shift"` |
 | **Fn** | `.fn` | `"fn"` |
+
+---
+
+## 🎯 Remap theo từng ứng dụng (App-Specific Remapping)
+
+Bạn có thể đặt **hành động khác nhau cho cùng một phím** tùy vào app nào đang active.
+
+### Các phương thức lọc app
+
+| Phương thức | Ý nghĩa |
+| :--- | :--- |
+| `.only("bundle.id", ...)` | Chỉ áp dụng rule khi đang dùng app này |
+| `.except("bundle.id", ...)` | Áp dụng cho tất cả app, **trừ** các app này |
+| `.passthrough()` | Không remap — để phím đi qua nguyên vẹn |
+
+> **Lưu ý quan trọng**: Rules được kiểm tra **theo thứ tự từ trên xuống**. Rule app-specific phải đặt **trước** rule fallback (không có filter).
+
+---
+
+### Ví dụ 1 — Ctrl+C: giữ nguyên trong Terminal, chuyển thành Cmd+C ở nơi khác
+
+```swift
+// ✅ Rule app-specific đặt TRƯỚC
+keyboard.c.ctrl.only(
+    "com.apple.Terminal",
+    "com.googlecode.iterm2",
+    "net.kovidgoyal.kitty"
+).passthrough(),  // Ctrl+C giữ nguyên → gửi SIGINT trong terminal
+
+// ✅ Fallback cho tất cả app còn lại
+keyboard.c.ctrl.except(
+    "com.apple.Terminal",
+    "com.googlecode.iterm2",
+    "net.kovidgoyal.kitty"
+) => keyboard.c.cmd,
+```
+
+---
+
+### Ví dụ 2 — Del: Forward Delete trong Chrome, xóa dòng ở nơi khác
+
+```swift
+// Chrome: Del → Shift+Del (forward delete ký tự phía sau con trỏ)
+keyboard.forwardDelete.only(
+    "com.google.Chrome",
+    "com.google.Chrome.canary"
+) => keyboard.forwardDelete.shift,
+
+// Mọi app còn lại: Del → Cmd+Backspace (xóa cả dòng / vào Trash)
+keyboard.forwardDelete => keyboard.backspace.cmd,
+```
+
+---
+
+### Tìm Bundle ID của app
+
+```bash
+# Cách 1: osascript
+osascript -e 'id of app "Google Chrome"'
+# → com.google.Chrome
+
+# Cách 2: mdls
+mdls -name kMDItemCFBundleIdentifier /Applications/Google\ Chrome.app
+
+# Cách 3: Bật verbose và nhìn log real-time
+./keyboard-remapper --verbose
+# → ⚡ [DOWN] Del  ➡  Cmd+Backspace (ứng dụng: Finder)
+```
+
+---
+
+### JSON tương đương
+
+Nếu dùng `config.json`, cú pháp cho app filter như sau:
+
+```json
+{
+  "mappings": [
+    {
+      "from": { "key": "c", "modifiers": ["ctrl"] },
+      "to": null,
+      "appFilter": { "type": "only", "bundleIds": ["com.apple.Terminal", "com.googlecode.iterm2"] }
+    },
+    {
+      "from": { "key": "c", "modifiers": ["ctrl"] },
+      "to": { "key": "c", "modifiers": ["cmd"] },
+      "appFilter": { "type": "except", "bundleIds": ["com.apple.Terminal", "com.googlecode.iterm2"] }
+    }
+  ]
+}
+```
+
+> `"to": null` nghĩa là **passthrough** — phím gốc đi qua không bị remap.

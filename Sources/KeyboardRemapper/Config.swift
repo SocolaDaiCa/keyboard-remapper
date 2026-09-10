@@ -1,6 +1,56 @@
 import Foundation
 import CoreGraphics
 
+// MARK: - App Filter
+
+/// Lọc ứng dụng để áp dụng quy tắc remap có điều kiện
+public enum AppFilter: Codable, Equatable, Hashable {
+    /// Chỉ áp dụng rule cho các app có bundle ID trong danh sách
+    case only([String])
+    /// Áp dụng cho tất cả app, TRỪ các app có bundle ID trong danh sách
+    case except([String])
+
+    private enum CodingKeys: String, CodingKey { case type, bundleIds }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .only(let ids):
+            try c.encode("only", forKey: .type)
+            try c.encode(ids, forKey: .bundleIds)
+        case .except(let ids):
+            try c.encode("except", forKey: .type)
+            try c.encode(ids, forKey: .bundleIds)
+        }
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let type = try c.decode(String.self, forKey: .type)
+        let ids  = try c.decode([String].self, forKey: .bundleIds)
+        switch type {
+        case "only":   self = .only(ids)
+        case "except": self = .except(ids)
+        default:       self = .only(ids)
+        }
+    }
+
+    /// Kiểm tra filter có match với bundle ID hiện tại không
+    public func matches(bundleId: String?) -> Bool {
+        guard let bundleId = bundleId else {
+            // App không xác định → chỉ pass nếu là `.except`
+            if case .except = self { return true }
+            return false
+        }
+        switch self {
+        case .only(let ids):   return ids.contains(bundleId)
+        case .except(let ids): return !ids.contains(bundleId)
+        }
+    }
+}
+
+// MARK: - KeyCombo
+
 public struct KeyCombo: Codable, Equatable {
     public var key: String
     public var modifiers: [String]?
@@ -20,24 +70,43 @@ public struct KeyCombo: Codable, Equatable {
     }
 }
 
+// MARK: - KeyMapping
+
 public struct KeyMapping: Codable, Equatable {
     public var from: KeyCombo
-    public var to: KeyCombo
+    /// Phím đích. `nil` = passthrough (không remap, để event đi qua bình thường)
+    public var to: KeyCombo?
+    /// Lọc theo ứng dụng. `nil` = áp dụng cho tất cả app
+    public var appFilter: AppFilter?
 
-    public init(from: KeyCombo, to: KeyCombo) {
+    public init(from: KeyCombo, to: KeyCombo?, appFilter: AppFilter? = nil) {
         self.from = from
         self.to = to
+        self.appFilter = appFilter
     }
 
-    public init(from: Key, to: Key) {
+    public init(from: Key, to: Key?, appFilter: AppFilter? = nil) {
         self.from = KeyCombo(from)
-        self.to = KeyCombo(to)
+        self.to = to.map { KeyCombo($0) }
+        self.appFilter = appFilter
     }
+
+    public var isPassthrough: Bool { to == nil }
 
     public var description: String {
-        return "\(from.displayString)  ➔  \(to.displayString)"
+        let fromStr = from.displayString
+        let toStr   = to?.displayString ?? "passthrough"
+        let appStr: String
+        switch appFilter {
+        case .only(let ids):   appStr = " [only: \(ids.joined(separator: ", "))]"
+        case .except(let ids): appStr = " [except: \(ids.joined(separator: ", "))]"
+        case nil:              appStr = ""
+        }
+        return "\(fromStr)  ➔  \(toStr)\(appStr)"
     }
 }
+
+// MARK: - Config
 
 public struct Config: Codable {
     public var verbose: Bool?
@@ -87,19 +156,32 @@ public struct Config: Codable {
     }
 }
 
+// MARK: - CompiledMapping
+
 public struct CompiledMapping {
     public let fromCode: CGKeyCode
     public let fromFlags: CGEventFlags
-    public let toCode: CGKeyCode
-    public let toFlags: CGEventFlags
+    /// `nil` = passthrough (chặn event gốc, KHÔNG gửi event thay thế → event đi qua)
+    public let toCode: CGKeyCode?
+    public let toFlags: CGEventFlags?
+    public let appFilter: AppFilter?
     public let displayString: String
 
-    public func matches(code: CGKeyCode, flags: CGEventFlags) -> Bool {
+    public var isPassthrough: Bool { toCode == nil }
+
+    /// Kiểm tra rule có khớp với phím + modifier + app hiện tại không
+    public func matches(code: CGKeyCode, flags: CGEventFlags, bundleId: String? = nil) -> Bool {
         guard code == fromCode else { return false }
         let relevantFlags = flags.intersection(KeyCodeHelper.modifierMask)
-        return relevantFlags == fromFlags
+        guard relevantFlags == fromFlags else { return false }
+        if let filter = appFilter {
+            return filter.matches(bundleId: bundleId)
+        }
+        return true // Không có filter = áp dụng cho tất cả
     }
 }
+
+// MARK: - ConfigCompiler
 
 public struct ConfigCompiler {
     public static func compile(config: Config) throws -> [CompiledMapping] {
@@ -109,27 +191,44 @@ public struct ConfigCompiler {
             guard let fromCode = KeyCodeHelper.keyCode(for: mapping.from.key) else {
                 throw ConfigError.unknownKey(mapping.from.key, ruleIndex: index + 1, direction: "from")
             }
-            guard let toCode = KeyCodeHelper.keyCode(for: mapping.to.key) else {
-                throw ConfigError.unknownKey(mapping.to.key, ruleIndex: index + 1, direction: "to")
-            }
 
             let fromFlags = KeyCodeHelper.parseModifiers(mapping.from.modifiers)
-            let toFlags = KeyCodeHelper.parseModifiers(mapping.to.modifiers)
 
-            compiled.append(
-                CompiledMapping(
-                    fromCode: fromCode,
-                    fromFlags: fromFlags,
-                    toCode: toCode,
-                    toFlags: toFlags,
-                    displayString: mapping.description
+            if let to = mapping.to {
+                guard let toCode = KeyCodeHelper.keyCode(for: to.key) else {
+                    throw ConfigError.unknownKey(to.key, ruleIndex: index + 1, direction: "to")
+                }
+                let toFlags = KeyCodeHelper.parseModifiers(to.modifiers)
+                compiled.append(
+                    CompiledMapping(
+                        fromCode: fromCode,
+                        fromFlags: fromFlags,
+                        toCode: toCode,
+                        toFlags: toFlags,
+                        appFilter: mapping.appFilter,
+                        displayString: mapping.description
+                    )
                 )
-            )
+            } else {
+                // Passthrough rule
+                compiled.append(
+                    CompiledMapping(
+                        fromCode: fromCode,
+                        fromFlags: fromFlags,
+                        toCode: nil,
+                        toFlags: nil,
+                        appFilter: mapping.appFilter,
+                        displayString: mapping.description
+                    )
+                )
+            }
         }
 
         return compiled
     }
 }
+
+// MARK: - ConfigError
 
 public enum ConfigError: LocalizedError {
     case unknownKey(String, ruleIndex: Int, direction: String)
