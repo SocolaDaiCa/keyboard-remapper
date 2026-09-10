@@ -255,5 +255,11 @@ public struct UserConfig {
         // =================================================================
         // Del ➔ ⌘ Cmd + Backspace (Xóa toàn bộ dòng / Chuyển vào Trash trong Finder)
         keyboard.forwardDelete => keyboard.backspace.cmd,
+
+        // =================================================================
+        // 12. Khóa màn hình (Lock Screen)
+        // =================================================================
+        // ⌘ Cmd + L ➔ ⌘ Cmd + ⌃ Ctrl + Q (Khóa màn hình / Lock Screen)
+        keyboard.l.cmd => keyboard.q.cmd.ctrl,
     ]
 }
