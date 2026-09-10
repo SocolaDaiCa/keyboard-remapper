@@ -249,5 +249,11 @@ public struct UserConfig {
 
         // ⌃ Ctrl + Delete (Forward Delete) ➔ ⌥ Opt + Delete (Xóa cả từ phía sau)
         keyboard.forwardDelete.ctrl => keyboard.forwardDelete.opt,
+
+        // =================================================================
+        // 11. Phím Del trên bàn phím rời (External Keyboard Delete Key)
+        // =================================================================
+        // Del ➔ ⌘ Cmd + Backspace (Xóa toàn bộ dòng / Chuyển vào Trash trong Finder)
+        keyboard.forwardDelete => keyboard.backspace.cmd,
     ]
 }
