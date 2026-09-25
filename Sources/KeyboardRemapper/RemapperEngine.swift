@@ -36,19 +36,25 @@ public class RemapperEngine {
     private let mappings: [CompiledMapping]
     private let verbose: Bool
     private let controlClickToCommandClick: Bool
+    private let enableCommandSpotlight: Bool
     private let eventSource: CGEventSource?
     private let vietnameseEngine: VietnameseInputEngine?
     public static let magicTag: Int64 = 0x52454D4150 // ASCII "REMAP"
+
+    /// Theo dõi trạng thái "Command tap" (nhấn rồi thả Command mà không có phím nào khác)
+    private var commandPressedAlone: Bool = false
 
     public init(
         mappings: [CompiledMapping],
         verbose: Bool = false,
         controlClickToCommandClick: Bool = false,
-        enableVietnameseTelex: Bool = false
+        enableVietnameseTelex: Bool = false,
+        enableCommandSpotlight: Bool = false
     ) {
         self.mappings = mappings
         self.verbose = verbose
         self.controlClickToCommandClick = controlClickToCommandClick
+        self.enableCommandSpotlight = enableCommandSpotlight
         // HID system state source simulates hardware input events
         self.eventSource = CGEventSource(stateID: .hidSystemState)
         self.vietnameseEngine = enableVietnameseTelex ? VietnameseInputEngine() : nil
@@ -75,7 +81,8 @@ public class RemapperEngine {
         }
 
         let eventMask = (1 << CGEventType.keyDown.rawValue) |
-                        (1 << CGEventType.keyUp.rawValue)
+                        (1 << CGEventType.keyUp.rawValue) |
+                        (1 << CGEventType.flagsChanged.rawValue)
 
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
 
@@ -201,9 +208,47 @@ public class RemapperEngine {
             return Unmanaged.passRetained(event)
         }
 
+        // flagsChanged = modifier key được nhấn hoặc thả (Command, Shift, Ctrl, Option...)
+        // Cần độc keyCode từ event để xác định đây là phím modifier nào
         let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
         let flags = event.flags
-        let isDown = (type == .keyDown)
+        // flagsChanged không có khái niệm keyDown/keyUp riêng, ta suy ra từ flags
+        let isDown: Bool
+        if type == .flagsChanged {
+            // Nếu flag của modifier tương ứng được set = đang được nhấn
+            let isCommandKey = (keyCode == 55 || keyCode == 54)
+            isDown = isCommandKey ? flags.contains(.maskCommand) : true
+        } else {
+            isDown = (type == .keyDown)
+        }
+
+        // --- Xử lý Command Tap → Spotlight Search ---
+        if enableCommandSpotlight {
+            let relevantFlags = flags.intersection(KeyCodeHelper.modifierMask)
+            let isCommandOnly = relevantFlags == .maskCommand
+            let isModifierEvent = (keyCode == 55 || keyCode == 54) // Left Cmd = 55, Right Cmd = 54
+
+            if isModifierEvent {
+                if isDown && isCommandOnly {
+                    // Command vừa được nhấn xuống một mình → đánh dấu "có thể là tap"
+                    commandPressedAlone = true
+                } else if !isDown && commandPressedAlone {
+                    // Command vừa được thả ra và trong suốt quá trình giữ không có phím nào khác
+                    commandPressedAlone = false
+                    if verbose {
+                        print("🔍 [Command Tap] ⌘ Command → Spotlight Search")
+                    }
+                    postSpotlightSearch()
+                    return nil
+                } else {
+                    commandPressedAlone = false
+                }
+                return Unmanaged.passRetained(event)
+            } else if isDown {
+                // Có phím khác được nhấn → hủy trạng thái "tap"
+                commandPressedAlone = false
+            }
+        }
 
         // --- Xử lý bộ gõ tiếng Việt Telex (ưu tiên trước remap thông thường) ---
         if let viet = vietnameseEngine {
@@ -358,6 +403,23 @@ public class RemapperEngine {
         // Đẩy event mới và triệt tiêu event gốc
         newEvent.post(tap: .cghidEventTap)
         return nil
+    }
+
+    // MARK: - Spotlight Search Helper
+
+    /// Gửi tổ hợp ⌘ Cmd + Space để mở Spotlight Search
+    private func postSpotlightSearch() {
+        // keyCode 49 = Space trên macOS
+        let spaceKeyCode: CGKeyCode = 49
+        if let spaceDown = CGEvent(keyboardEventSource: eventSource, virtualKey: spaceKeyCode, keyDown: true),
+           let spaceUp   = CGEvent(keyboardEventSource: eventSource, virtualKey: spaceKeyCode, keyDown: false) {
+            spaceDown.flags = .maskCommand
+            spaceUp.flags = .maskCommand
+            spaceDown.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
+            spaceUp.setIntegerValueField(.eventSourceUserData, value: RemapperEngine.magicTag)
+            spaceDown.post(tap: .cghidEventTap)
+            spaceUp.post(tap: .cghidEventTap)
+        }
     }
 
     // MARK: - Vietnamese Input Helpers

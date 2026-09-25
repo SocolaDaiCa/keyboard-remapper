@@ -25,6 +25,15 @@ public struct UserConfig {
     /// (true: Bật — ⌃ Ctrl+Click sẽ hoạt động như ⌘ Cmd+Click để mở link trong tab mới, v.v.)
     public static let controlClickToCommandClick: Bool = true
 
+    /// 🔍 Nhấn và thả phím Command (⌘) một mình → mở Spotlight Search
+    ///
+    /// Khi bật, nếu bạn nhấn rồi thả phím ⌘ Command mà KHÔNG kết hợp với phím nào khác,
+    /// Spotlight Search sẽ tự động xuất hiện (tương đương ⌘ Cmd + Space).
+    ///
+    /// ⚠️  Lưu ý: Chỉ kích hoạt khi Command được nhấn và thả hoàn toàn một mình
+    ///           (không giữ kết hợp với phím khác). Các tổ hợp ⌘+phím khác vẫn hoạt động bình thường.
+    public static let enableCommandSpotlight: Bool = true
+
     /// 🇻🇳 Bật bộ gõ tiếng Việt kiểu Telex tích hợp
     ///
     /// Khi bật, bạn có thể gõ tiếng Việt KHÔNG cần bật input source của macOS —
