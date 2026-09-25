@@ -86,12 +86,14 @@ public struct UserConfig {
         keyboard.c.ctrl.only(
             "com.apple.Terminal",
             "com.googlecode.iterm2",
-            "net.kovidgoyal.kitty"
+            "net.kovidgoyal.kitty",
+            "com.google.antigravity-ide"
         ).passthrough(),
         keyboard.c.ctrl.except(
             "com.apple.Terminal",
             "com.googlecode.iterm2",
-            "net.kovidgoyal.kitty"
+            "net.kovidgoyal.kitty",
+            "com.google.antigravity-ide"
         ) => keyboard.c.cmd,
 
         // ⌃ Ctrl + X ➔ ⌘ Cmd + X (Cắt / Cut)
