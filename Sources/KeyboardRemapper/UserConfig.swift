@@ -82,27 +82,33 @@ public struct UserConfig {
         keyboard.a.ctrl => keyboard.a.cmd,
 
         // ⌃ Ctrl + C ➔ ⌘ Cmd + C (Sao chép / Copy)
-        // ⚠️  Ngoại lệ: Giữ nguyên Ctrl+C trong Terminal và các IDE (để gửi tín hiệu SIGINT ngắt tiến trình trong terminal)
-        // 💡 Khi khởi động, keyboard-remapper sẽ tự động đồng bộ keybindings cho Antigravity IDE, VS Code, Cursor...
-        //     để Ctrl+C tự động Copy khi bôi đen và gửi SIGINT khi trong Terminal.
+        // ⚠️  Ngoại lệ: Trong các terminal thuần túy (Terminal, iTerm2, Kitty), giữ nguyên Ctrl+C (gửi tín hiệu SIGINT)
         keyboard.c.ctrl.only(
             "com.apple.Terminal",
             "com.googlecode.iterm2",
-            "net.kovidgoyal.kitty",
-            "com.google.antigravity-ide",
-            "com.microsoft.VSCode",
-            "com.todesktop.230313mzl4w4u92",
-            "com.visualstudio.code.oss"
+            "net.kovidgoyal.kitty"
         ).passthrough(),
         keyboard.c.ctrl.except(
             "com.apple.Terminal",
             "com.googlecode.iterm2",
+            "net.kovidgoyal.kitty"
+        ) => keyboard.c.cmd,
+
+        // ⌘ Cmd + C ➔ ⌃ Ctrl + C (Nút ngắt lệnh đa năng: gửi SIGINT đóng/dừng tiến trình trong bất kỳ terminal nào)
+        // Áp dụng cho: Terminal, iTerm2, Kitty, Antigravity IDE, VS Code, Cursor...
+        keyboard.c.cmd.only(
+            "com.apple.Terminal",
+            "com.googlecode.iterm2",
             "net.kovidgoyal.kitty",
             "com.google.antigravity-ide",
             "com.microsoft.VSCode",
             "com.todesktop.230313mzl4w4u92",
-            "com.visualstudio.code.oss"
-        ) => keyboard.c.cmd,
+            "com.visualstudio.code.oss",
+            "com.mitchellh.ghostty",
+            "dev.warp.Warp-Stable",
+            "org.alacritty",
+            "com.github.wez.wezterm"
+        ) => keyboard.c.ctrl,
 
         // ⌃ Ctrl + X ➔ ⌘ Cmd + X (Cắt / Cut)
         keyboard.x.ctrl => keyboard.x.cmd,

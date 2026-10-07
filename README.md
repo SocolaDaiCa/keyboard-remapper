@@ -88,13 +88,7 @@ Nếu muốn tuỳ biến phím mà không cần biên dịch lại code:
 ./keyboard-remapper --list-keys
 ```
 
-### 6. Đồng bộ phím tắt cho IDE (Antigravity IDE, VS Code, Cursor...):
-```bash
-./keyboard-remapper --sync-ide
-```
-> **Tự động hoàn toàn**: Khi bạn chạy `./keyboard-remapper`, chương trình sẽ **tự động quét và cấu hình** `keybindings.json` cho Antigravity IDE, VS Code, Cursor... để `Ctrl + C` vừa Copy khi bôi đen code, vừa gửi SIGINT (ngắt tiến trình) khi ở trong Terminal.
-
-### 7. Dừng chương trình:
+### 6. Dừng chương trình:
 Nhấn **Ctrl + C** hoặc **Ctrl + \\** trong Terminal bất cứ lúc nào để dừng an toàn.
 
 ---
@@ -197,34 +191,40 @@ Bạn có thể đặt **hành động khác nhau cho cùng một phím** tùy v
 
 ---
 
-### Ví dụ 1 — Ctrl+C: giữ nguyên trong Terminal & IDE, chuyển thành Cmd+C ở nơi khác
+### Ví dụ 1 — Ctrl+C để Copy mọi nơi, Cmd+C để ngắt lệnh (SIGINT) trong bất kỳ Terminal nào
 
 ```swift
-// ✅ Rule app-specific đặt TRƯỚC:
-// Giữ nguyên Ctrl+C trong Terminal và các IDE để gửi SIGINT ngắt lệnh
+// 1. Ctrl+C ➔ Cmd+C (Copy văn bản / code ổn định trên toàn hệ thống và trong IDE)
 keyboard.c.ctrl.only(
     "com.apple.Terminal",
     "com.googlecode.iterm2",
-    "net.kovidgoyal.kitty",
-    "com.google.antigravity-ide",
-    "com.microsoft.VSCode",
-    "com.todesktop.230313mzl4w4u92",
-    "com.visualstudio.code.oss"
+    "net.kovidgoyal.kitty"
 ).passthrough(),
-
-// ✅ Fallback cho tất cả app còn lại
 keyboard.c.ctrl.except(
+    "com.apple.Terminal",
+    "com.googlecode.iterm2",
+    "net.kovidgoyal.kitty"
+) => keyboard.c.cmd,
+
+// 2. Cmd+C ➔ Ctrl+C (Nút ngắt lệnh đa năng: gửi SIGINT dừng tiến trình trong bất kỳ terminal nào)
+keyboard.c.cmd.only(
     "com.apple.Terminal",
     "com.googlecode.iterm2",
     "net.kovidgoyal.kitty",
     "com.google.antigravity-ide",
     "com.microsoft.VSCode",
     "com.todesktop.230313mzl4w4u92",
-    "com.visualstudio.code.oss"
-) => keyboard.c.cmd,
+    "com.visualstudio.code.oss",
+    "com.mitchellh.ghostty",
+    "dev.warp.Warp-Stable",
+    "org.alacritty",
+    "com.github.wez.wezterm"
+) => keyboard.c.ctrl,
 ```
 
-> **Lưu ý với IDE**: `keyboard-remapper` tự động đồng bộ file `keybindings.json` của Antigravity IDE, VS Code, Cursor... để khi bôi đen code trong editor vẫn Copy bình thường (`Cmd+C`), còn khi ở Terminal thì giữ `Ctrl+C` (`SIGINT`).
+> **Cách thức hoạt động**:
+> - Trong **Antigravity IDE & hệ thống**: Nhấn `Ctrl + C` để **Copy** mọi nơi (editor, terminal, search, diff, chat...).
+> - Trong **bất kỳ Terminal nào** (Antigravity Terminal, VS Code Terminal, iTerm2, Terminal.app...): Nhấn `Cmd + C` để **ngắt tiến trình (SIGINT)**.
 
 ---
 
