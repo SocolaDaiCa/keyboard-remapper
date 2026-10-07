@@ -82,18 +82,26 @@ public struct UserConfig {
         keyboard.a.ctrl => keyboard.a.cmd,
 
         // ⌃ Ctrl + C ➔ ⌘ Cmd + C (Sao chép / Copy)
-        // ⚠️  Ngoại lệ: Trong Terminal và iTerm2, giữ nguyên Ctrl+C (ín hiệu SIGINT)
+        // ⚠️  Ngoại lệ: Giữ nguyên Ctrl+C trong Terminal và các IDE (để gửi tín hiệu SIGINT ngắt tiến trình trong terminal)
+        // 💡 Khi khởi động, keyboard-remapper sẽ tự động đồng bộ keybindings cho Antigravity IDE, VS Code, Cursor...
+        //     để Ctrl+C tự động Copy khi bôi đen và gửi SIGINT khi trong Terminal.
         keyboard.c.ctrl.only(
             "com.apple.Terminal",
             "com.googlecode.iterm2",
             "net.kovidgoyal.kitty",
-            "com.google.antigravity-ide"
+            "com.google.antigravity-ide",
+            "com.microsoft.VSCode",
+            "com.todesktop.230313mzl4w4u92",
+            "com.visualstudio.code.oss"
         ).passthrough(),
         keyboard.c.ctrl.except(
             "com.apple.Terminal",
             "com.googlecode.iterm2",
             "net.kovidgoyal.kitty",
-            "com.google.antigravity-ide"
+            "com.google.antigravity-ide",
+            "com.microsoft.VSCode",
+            "com.todesktop.230313mzl4w4u92",
+            "com.visualstudio.code.oss"
         ) => keyboard.c.cmd,
 
         // ⌃ Ctrl + X ➔ ⌘ Cmd + X (Cắt / Cut)

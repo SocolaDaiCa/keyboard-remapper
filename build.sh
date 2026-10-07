@@ -10,6 +10,7 @@ swift build -c release
 BIN_PATH=$(swift build -c release --show-bin-path)/keyboard-remapper
 cp "$BIN_PATH" ./keyboard-remapper
 chmod +x ./keyboard-remapper
+codesign -s - -f ./keyboard-remapper 2>/dev/null || true
 
 echo "✅ Biên dịch thành công! File thực thi đã được đặt tại: $DIR/keyboard-remapper"
 echo "🚀 Chạy thử: ./keyboard-remapper --help"

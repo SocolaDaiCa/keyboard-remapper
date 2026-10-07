@@ -1,5 +1,7 @@
 import Foundation
 import CoreGraphics
+import ApplicationServices
+import AppKit
 
 // Disable output buffering so logs show immediately in non-TTY/redirected streams
 setbuf(stdout, nil)
@@ -20,6 +22,7 @@ func printUsage() {
       --init                  Tạo file config.json mẫu từ UserConfig.swift
       --list-keys             Xem toàn bộ danh sách phím và modifier được hỗ trợ
       --check-permission      Kiểm tra và yêu cầu cấp quyền Accessibility trên macOS
+      --sync-ide              Đồng bộ cấu hình phím Ctrl+C cho Antigravity IDE, VS Code, Cursor
       -v, --verbose           Bật log chi tiết khi các phím được remap
       -h, --help              Hiển thị hướng dẫn này
 
@@ -155,6 +158,10 @@ while index < args.count {
     case "--check-permission":
         checkPermissionOnly()
         exit(0)
+    case "--sync-ide":
+        IDEIntegration.syncKeybindings(verbose: true)
+        print("✅ Đã hoàn tất đồng bộ cấu hình cho các IDE.")
+        exit(0)
     case "-v", "--verbose":
         verboseFlag = true
         index += 1
@@ -229,6 +236,9 @@ Danh sách quy tắc phím đang kích hoạt (\(compiledMappings.count)):
 for (idx, mapping) in compiledMappings.enumerated() {
     print("  [\(idx + 1)] \(mapping.displayString)")
 }
+
+// Tự động kiểm tra và đồng bộ cấu hình phím Ctrl+C cho các IDE đã cài đặt (Antigravity, VS Code, Cursor...)
+IDEIntegration.syncKeybindings(verbose: isVerbose)
 
 print("""
 ===================================================================
