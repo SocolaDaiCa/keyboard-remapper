@@ -228,6 +228,12 @@ public struct UserConfig {
         // ⌃ Ctrl + I ➔ ⌘ Cmd + I (In nghiêng)
         keyboard.i.ctrl => keyboard.i.cmd,
 
+        // ⌃ Ctrl + U trong Chrome ➔ ⌥ Opt + ⌘ Cmd + U (Xem mã nguồn trang / View Source như Windows)
+        keyboard.u.ctrl.only(
+            "com.google.Chrome",
+            "com.google.Chrome.canary"
+        ) => keyboard.u.cmd.opt,
+
         // ⌃ Ctrl + U ➔ ⌘ Cmd + U (Gạch chân)
         keyboard.u.ctrl => keyboard.u.cmd,
 
